@@ -274,7 +274,7 @@ namespace ONT412_Assignment
             }
             else
             {
-                Console.WriteLine("Book not found in borrowed books. Please check the title and try again."); // Handle book not found
+                Console.WriteLine("Book not found in borrowed books or may have been returned. Please check the title and try again."); // Handle book not found
             }
         }
     }
