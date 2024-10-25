@@ -14,6 +14,7 @@ namespace ONT412_Assignment
     {
         void Borrow(User user, Book book, List<Book> books, List<Book> borrowedBooks);
         void Return(Book book, List<Book> books, List<Book> borrowedBooks);
+        void Reserve(User user, Book book, List<Book> books, List<Book> reservedBooks); // New method for reserving a book
     }
 
     // Available state of a book
@@ -52,6 +53,16 @@ namespace ONT412_Assignment
         {
             Console.WriteLine("The book is already available. No need to return.");
         }
+
+        public void Reserve(User user, Book book, List<Book> books, List<Book> reservedBooks)
+        {
+            Console.WriteLine($"{user.Name} reserved the book: {book.Title}");
+            book.SetState(new ReservedState()); // Change the book's state to Reserved
+            // Remove the book from the list of available books only when it is borrowed
+            // books.Remove(book); // Commented out to keep it in the available list
+            reservedBooks.Add(book); // Add the book to the reserved books list
+            book.ReservedBy = user; // Set the user who reserved the book
+        }
     }
 
     // Borrowed state of a book
@@ -69,6 +80,11 @@ namespace ONT412_Assignment
             borrowedBooks.Remove(book); // Remove the book from the borrowed books list
             books.Add(book); // Add the book back to the list of available books
         }
+
+        public void Reserve(User user, Book book, List<Book> books, List<Book> reservedBooks)
+        {
+            Console.WriteLine($"The book {book.Title} is already borrowed and cannot be reserved.");
+        }
     }
 
     // Reserved state of a book
@@ -76,13 +92,28 @@ namespace ONT412_Assignment
     {
         public void Borrow(User user, Book book, List<Book> books, List<Book> borrowedBooks)
         {
-            Console.WriteLine($"The book {book.Title} is reserved and cannot be borrowed.");
+            if (book.ReservedBy == user) // Check if the user is the one who reserved the book
+            {
+                Console.WriteLine($"{user.Name} borrowed the reserved book: {book.Title}");
+                book.SetState(new BorrowedState()); // Change the book's state to Borrowed
+                borrowedBooks.Add(book); // Add the book to the borrowed books list
+                books.Remove(book); // Remove the book from the list of available books
+            }
+            else
+            {
+                Console.WriteLine($"The book {book.Title} is reserved by {book.ReservedBy.Name} and cannot be borrowed by {user.Name}.");
+            }
         }
 
         public void Return(Book book, List<Book> books, List<Book> borrowedBooks)
         {
             Console.WriteLine($"The reserved book {book.Title} has been returned.");
-            book.SetState(new AvailableState());
+            book.SetState(new AvailableState()); // Change the book's state back to Available
+        }
+
+        public void Reserve(User user, Book book, List<Book> books, List<Book> reservedBooks)
+        {
+            Console.WriteLine($"The book {book.Title} is already reserved.");
         }
     }
 
@@ -94,6 +125,7 @@ namespace ONT412_Assignment
         public string Title { get; private set; }
         public bool IsPremium { get; private set; }
         private IBookState _state;
+        public User ReservedBy { get; set; } // Change from private to public
 
         public Book(string title, bool isPremium)
         {
@@ -115,6 +147,12 @@ namespace ONT412_Assignment
         public void Return(List<Book> books, List<Book> borrowedBooks)
         {
             _state.Return(this, books, borrowedBooks); // Delegate returning action to the current state
+        }
+
+        public void Reserve(User user, List<Book> books, List<Book> reservedBooks)
+        {
+            _state.Reserve(user, this, books, reservedBooks); // Delegate reserving action to the current state
+            ReservedBy = user; // Set the user who reserved the book
         }
     }
 
@@ -168,10 +206,15 @@ namespace ONT412_Assignment
             // Sample books
             Book book1 = new Book("The Great Gatsby", false);  // Non-premium book
             Book book2 = new Book("1984", true);  // Premium book
+            Book book3 = new Book("To Kill a Mockingbird", false);  // Non-premium book
+            Book book4 = new Book("The Catcher in the Rye", false);  // Non-premium book
+            Book book5 = new Book("Pride and Prejudice", false);  // Non-premium book
+            Book book6 = new Book("The Lord of the Rings", true);  // Premium book
 
             // Book collections
-            List<Book> books = new List<Book> { book1, book2 }; // Available books
+            List<Book> books = new List<Book> { book1, book2, book3, book4, book5, book6 }; // Available books
             List<Book> borrowedBooks = new List<Book>(); // Borrowed books
+            List<Book> reservedBooks = new List<Book>(); // Reserved books
 
             // Simple command-line menu for library interaction
             bool running = true;
@@ -184,8 +227,9 @@ namespace ONT412_Assignment
                 Console.WriteLine("1. Browse Books"); // Option to view available books
                 Console.WriteLine("2. Borrow a Book"); // Option to borrow a book
                 Console.WriteLine("3. Return a Book"); // Option to return a borrowed book
-                Console.WriteLine("4. Exit"); // Option to exit the application
-                Console.Write("Please choose an option (1-4): ");
+                Console.WriteLine("4. Reserve a Book"); // New option to reserve a book
+                Console.WriteLine("5. Exit"); // Move Exit option to the last position
+                Console.Write("Please choose an option (1-5): ");
                 string choice = Console.ReadLine(); // Read user input for menu choice
 
                 // Handle user choice
@@ -201,6 +245,9 @@ namespace ONT412_Assignment
                         ReturnBook(books, borrowedBooks); // Call method to return a book
                         break;
                     case "4":
+                        ReserveBook(books, reservedBooks, premiumUser, regularUser); // Call method to reserve a book
+                        break;
+                    case "5":
                         running = false; // Exit the loop to terminate the program
                         Console.WriteLine("Exiting the library system... Thank you for visiting!");
                         break;
@@ -220,8 +267,9 @@ namespace ONT412_Assignment
             Console.WriteLine("--------------");
             foreach (var book in books)
             {
-                // Display each book's title and whether it is premium
-                Console.WriteLine($"- {book.Title} (Premium: {(book.IsPremium ? "Yes" : "No")})");
+                // Display each book's title and whether it is premium or reserved
+                string status = book.ReservedBy != null ? "Reserved" : (book.IsPremium ? "Premium" : "Available");
+                Console.WriteLine($"- {book.Title} (Status: {status})");
             }
             Console.WriteLine("--------------");
         }
@@ -275,6 +323,29 @@ namespace ONT412_Assignment
             else
             {
                 Console.WriteLine("Book not found in borrowed books or may have been returned. Please check the title and try again."); // Handle book not found
+            }
+        }
+
+        // Function to simulate reserving a book
+        static void ReserveBook(List<Book> books, List<Book> reservedBooks, User premiumUser, User regularUser)
+        {
+            Console.WriteLine("\nEnter the user type (1 for Premium, 2 for Regular): ");
+            string userType = Console.ReadLine(); // Read user type input
+            User user = userType == "1" ? premiumUser : regularUser; // Determine user type
+
+            Console.WriteLine("Enter the title of the book to reserve: ");
+            string bookTitle = Console.ReadLine(); // Read the book title to reserve
+
+            // Find the book in the collection by title
+            Book book = books.Find(b => b.Title.Equals(bookTitle, StringComparison.OrdinalIgnoreCase));
+
+            if (book != null)
+            {
+                book.Reserve(user, books, reservedBooks); // Attempt to reserve the book and pass the lists
+            }
+            else
+            {
+                Console.WriteLine("Book not found. Please check the title and try again."); // Handle book not found
             }
         }
     }
